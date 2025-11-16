@@ -1,16 +1,149 @@
 {% extends 'base.html' %}
-{% block title %}Thời khoá biểu (Toàn trường){% endblock %}
-{% block page_title %}Thời khoá biểu (Toàn trường){% endblock %}
+{% block title %}Tạo mới thời khoá biểu{% endblock %}
+{% block page_title %}Tạo mới thời khoá biểu{% endblock %}
 {% block content %}
-<section class="panel">
+
+<!-- ==========================
+     PHẦN CHẠY JOB 
+=========================== -->
+<section class="panel" style="display:grid; gap:12px;">
+  <div class="actions">
+    <a class="btn" href="/run/schedule" onclick="event.preventDefault(); run();">Chạy sắp xếp</a>
+    <a class="btn secondary" href="/preview?file=schedule_final.csv">Xem kết quả</a>
+  </div>
+
+  <div>
+    <label>Job ID</label>
+    <div style="display:flex; gap:8px;">
+      <input id="jobId" placeholder="Dán job_id hoặc bấm Chạy sắp xếp" />
+      <button class="btn secondary" id="btnPoll">Poll</button>
+    </div>
+  </div>
+
+  <div id="jobStatus" style="background:var(--panel); padding:12px; max-height:400px; overflow:auto;"></div>
+</section>
+
+<script>
+// --- API helpers ---
+async function post(url){ const r = await fetch(url, {method:'POST'}); return r.json(); }
+async function get(url){ const r = await fetch(url); return r.json(); }
+
+// --- Render trạng thái job ---
+function formatJobStatus(job) {
+  if (!job) return '<p style="color:var(--muted);">Đang tải...</p>';
+
+  const status = job.status || 'unknown';
+  const statusColors = {
+    running: '#3b82f6', completed: '#10b981', failed: '#ef4444', unknown: '#6b7280'
+  };
+  const statusTexts = {
+    running: 'Đang chạy', completed: 'Hoàn thành', failed: 'Thất bại', unknown: 'Không xác định'
+  };
+
+  let html = `
+    <div style="display:grid; gap:12px;">
+      <div style="display:flex; align-items:center; gap:8px; padding:8px; background:var(--bg); border-radius:6px;">
+        <div style="width:12px; height:12px; border-radius:50%; background:${statusColors[status]};"></div>
+        <strong>Trạng thái:</strong> 
+        <span style="color:${statusColors[status]};">${statusTexts[status]}</span>
+      </div>
+  `;
+
+  if (job.title) html += `<div><strong>Tiêu đề:</strong> ${job.title}</div>`;
+  if (job.created_at) {
+    const date = new Date(job.created_at);
+    html += `<div><strong>Thời gian tạo:</strong> ${date.toLocaleString('vi-VN')}</div>`;
+  }
+
+  // --- Logs table ---
+  if (job.logs && job.logs.length > 0) {
+    html += `
+      <div><strong>Thông báo:</strong></div>
+      <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+        <thead><tr style="background:var(--bg); border-bottom:1px solid var(--border);">
+          <th style="padding:8px; width:100px;">Loại</th><th style="padding:8px;">Nội dung</th>
+        </tr></thead><tbody>
+    `;
+
+    const success=[], error=[], warn=[], info=[];
+    job.logs.forEach(log => {
+      const s = String(log);
+      if (s.includes('[SUCCESS]')) success.push(s.replace('[SUCCESS]', '').trim());
+      else if (s.includes('[ERROR]')) error.push(s.replace('[ERROR]', '').trim());
+      else if (s.includes('[WARNING]')) warn.push(s.replace('[WARNING]', '').trim());
+      else if (s.includes('[INFO]')) info.push(s.replace('[INFO]', '').trim());
+      else if (s.trim()) info.push(s.trim());
+    });
+
+    success.forEach(m=>html+=`<tr><td style="color:#10b981; padding:6px 8px;">Thành công</td><td>${m}</td></tr>`);
+    warn.forEach(m=>html+=`<tr><td style="color:#f59e0b; padding:6px 8px;">Cảnh báo</td><td>${m}</td></tr>`);
+    error.forEach(m=>html+=`<tr><td style="color:#ef4444; padding:6px 8px;">Lỗi</td><td>${m}</td></tr>`);
+    info.forEach(m=>html+=`<tr><td style="color:var(--muted); padding:6px 8px;">Thông tin</td><td>${m}</td></tr>`);
+
+    html += `</tbody></table>`;
+  }
+
+  if (job.error) {
+    html += `
+      <div style="margin-top:12px; padding:12px; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; color:#991b1b;">
+        <strong>Lỗi:</strong> ${job.error}
+      </div>`;
+  }
+
+  if (job.result && job.result.returncode !== undefined) {
+    const color = job.result.returncode === 0 ? '#10b981' : '#ef4444';
+    html += `<div><strong>Mã trả về:</strong> <span style="color:${color};">${job.result.returncode}</span></div>`;
+  }
+
+  return html + `</div>`;
+}
+
+// --- Poll job ---
+async function poll(id){
+  const box = document.getElementById('jobStatus');
+  box.innerHTML = '<p style="color:var(--muted);">Đang kiểm tra...</p>';
+  let stop=false;
+
+  while(!stop){
+    const s = await get(`/status/${id}`);
+    box.innerHTML = formatJobStatus(s);
+
+    if (s.status === 'completed' || s.status === 'failed') stop = true;
+    else await new Promise(r=>setTimeout(r,1500));
+  }
+}
+
+async function run(){
+  const res = await post('/run/schedule');
+  document.getElementById('jobId').value = res.job_id;
+  await poll(res.job_id);
+}
+
+document.getElementById('btnPoll').addEventListener('click', async()=>{
+  const id = document.getElementById('jobId').value.trim();
+  if (id) await poll(id);
+});
+</script>
+
+
+
+<!-- ==========================
+     PHẦN BẢNG THỜI KHOÁ BIỂU
+=========================== -->
+<section class="panel" style="margin-top:18px;">
   <div class="actions" style="margin-bottom:12px;">
     <a class="btn secondary" href="/preview?file=schedule_final.csv">Xem file CSV</a>
   </div>
+
   <div class="table-container">
     <table>
       <thead>
         <tr>
-          <th>ClassID</th><th>CourseID</th><th>SubjectName</th><th>TimeSlot</th><th>Room</th>
+          <th>ClassID</th>
+          <th>CourseID</th>
+          <th>SubjectName</th>
+          <th>TimeSlot</th>
+          <th>Room</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -19,46 +152,60 @@
 </section>
 
 <script>
-// Chuẩn hóa giờ học thành hh:mm (dùng lại hàm từ timetable_student.html)
+// --- Chuẩn hóa thời gian ---
 function normalizeTime(timeStr) {
   if (!timeStr) return timeStr;
   if (timeStr.includes(':')) return timeStr;
+
   if (timeStr.includes('-')) {
-    const parts = timeStr.split('-');
-    return parts.map(p => {
+    return timeStr.split('-').map(p => {
       p = p.trim();
-      if (p.length === 4) {
-        return p.substring(0, 2) + ':' + p.substring(2);
-      }
-      return p;
+      return (p.length === 4) ? p.slice(0,2)+':'+p.slice(2) : p;
     }).join('-');
   }
-  if (timeStr.length === 4 && /^\d{4}$/.test(timeStr)) {
-    return timeStr.substring(0, 2) + ':' + timeStr.substring(2);
-  }
+
+  if (timeStr.length === 4 && /^\d{4}$/.test(timeStr))
+    return timeStr.slice(0,2)+':'+timeStr.slice(2);
+
   return timeStr;
 }
 
-async function load(){
-  const res = await fetch('/download?file=schedule_final.csv');
-  const text = await res.text();
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  const body = document.getElementById('rows');
-  const cols = lines[0].split(',');
-  const map = {
-    ClassID: cols.indexOf('ClassID'), CourseID: cols.indexOf('CourseID'), SubjectName: cols.indexOf('SubjectName'),
-    TimeSlot: cols.indexOf('TimeSlot'), RoomAssigned: cols.indexOf('RoomAssigned')
-  };
-  for(let i=1;i<lines.length;i++){
-    const c = lines[i].split(',');
-    const timeSlot = normalizeTime((c[map.TimeSlot]||'').trim());
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${c[map.ClassID]||''}</td><td>${c[map.CourseID]||''}</td><td>${c[map.SubjectName]||''}</td><td>${timeSlot}</td><td>${c[map.RoomAssigned]||''}</td>`;
-    body.appendChild(tr);
+// --- Load CSV vào bảng ---
+async function loadTimetable(){
+  try {
+    const res = await fetch('/download?file=schedule_final.csv');
+    const text = await res.text();
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    if (lines.length === 0) return;
+
+    const body = document.getElementById('rows');
+    const cols = lines[0].split(',');
+
+    const iClass = cols.indexOf('ClassID');
+    const iCourse = cols.indexOf('CourseID');
+    const iName  = cols.indexOf('SubjectName');
+    const iTime  = cols.indexOf('TimeSlot');
+    const iRoom  = cols.indexOf('RoomAssigned');
+
+    for (let i=1; i<lines.length; i++){
+      const c = lines[i].split(',');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${c[iClass] || ''}</td>
+        <td>${c[iCourse] || ''}</td>
+        <td>${c[iName]  || ''}</td>
+        <td>${normalizeTime((c[iTime] || '').trim())}</td>
+        <td>${c[iRoom] || ''}</td>
+      `;
+      body.appendChild(tr);
+    }
+
+  } catch (err) {
+    console.error('Failed to load timetable', err);
   }
 }
-load();
+
+loadTimetable();
 </script>
+
 {% endblock %}
-
-

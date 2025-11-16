@@ -940,9 +940,6 @@ def create_app() -> Flask:
         return jsonify({'ok': True})
 
     # Timetable pages
-    @app.route('/schedule/new')
-    def schedule_new():
-        return render_template('schedule_new.html')
 
     @app.route('/timetable/school')
     def timetable_school():

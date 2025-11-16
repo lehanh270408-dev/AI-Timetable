@@ -1,23 +1,17 @@
 {
   "no_overlap": {
-    "by": [
-      "Teacher",
-      "RoomAssigned"
-    ]
+    "by": []
   },
-  "room_candidates": true,
+  "room_candidates": false,
   "max_classes_per_slot": null,
   "priority": {
     "Day": [
-      "Mon",
       "Tue",
-      "Wed"
+      "Wed",
+      "Thu"
     ],
     "TimeSlot": [
-      1,
-      2,
-      3,
-      4
+      0
     ]
   }
 }
