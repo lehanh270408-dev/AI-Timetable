@@ -6,12 +6,14 @@
   "max_classes_per_slot": null,
   "priority": {
     "Day": [
+      "Mon",
       "Tue",
-      "Wed",
-      "Thu"
+      "Wed"
     ],
     "TimeSlot": [
-      0
+      1,
+      2,
+      3
     ]
   }
 }
